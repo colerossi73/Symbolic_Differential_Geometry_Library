@@ -7,10 +7,11 @@ w = sym.symbols('w')
 r = sym.symbols('r')
 s = sym.symbols('s')
 t = sym.symbols('t')
+q = sym.symbols('q')
 
 
-var_list = [u, v, w]
-
+var_list = [r, u, v]
+"""
 f1 = Vector([u*sym.cos(v), u*sym.sin(v), u*sym.cos(w), u*sym.sin(w)])
 nu = gauss_map(f1, var_list)
 print(nu)
@@ -27,8 +28,24 @@ for k in range(0, 3):
     for i in range(0, 3):
         for j in range(0, 3):
             print("Gamma[{}][{}][{}] = {}".format(k, i, j, Gamma[k][i][j]))
+"""
+#f = Vector([u * v, v * w, w * u])
+#g = Matrix(3, 3, [v ** 2 + w ** 2, u * v, u * w, u * v, u ** 2 + w ** 2, v * w, u * w, v * w, u ** 2 + v ** 2])
+#g1 = M_add(Minkowski(f.dim-1), firstFF(f, var_list))
+#g_relativistic = M_add(Minkowski(2), g)
 
+f = Vector([r * sym.sin(u) * sym.cos(v), r * sym.sin(u) * sym.sin(v), r * sym.cos(u)])
+g = Matrix(3, 3, [1, 0, 0, 0, r ** 2, 0, 0, 0, r ** 2 * sym.sin(u) ** 2])
 
+Weyl_baseline = Weyl_Tensor(f, var_list)
+Weyl_test = Weyl_Tensor_metric(g, var_list)
+
+for i in range(0, 3):
+    for j in range(0, 3):
+        for k in range(0, 3):
+            for l in range(0, 3):
+                print("Weyl_baseline[{}][{}][{}][{}] = {}".format(i, j, k, l, Weyl_baseline[i][j][k][l]))
+                print("Weyl_test[{}][{}][{}][{}] = {}".format(i, j, k, l, Weyl_test[i][j][k][l]))
 
 #f2 = Vector([sym.cos(u)*sym.cos(v)*sym.cos(w), sym.sin(u)*sym.cos(v)*sym.cos(w), sym.sin(v)*sym.cos(w), sym.sin(w)])
 #nu = gauss_map(f2, var_list)
