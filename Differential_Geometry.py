@@ -344,7 +344,25 @@ def Christoffel_1(f, var_list):
 
     return gamma
 
-# Calculate Christoffel Symbols of First Kind (for Surfaces in R^3) G^k_ij has the array indices [k][i][j]
+###
+# Calculate Christoffel Symbols of the First Kind Given the Metric Tensor g_ij
+###
+
+def Christoffel_1_metric(g, var_list):
+    gamma = []
+    for i in range(0, len(var_list)):
+        g_ele = []
+        for j in range(0, len(var_list)):
+            subele = []
+            for k in range(0, len(var_list)):
+                ele = sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig((1/2) * (sym.diff(g.matrix[i][j], var_list[k]) + sym.diff(g.matrix[i][k], var_list[j]) - sym.diff(g.matrix[j][k], var_list[i]))))))
+                subele.append(ele)
+            g_ele.append(subele)
+        gamma.append(g_ele)
+    
+    return gamma
+
+# Calculate Christoffel Symbols of Second Kind (for Surfaces in R^3) G^k_ij has the array indices [k][i][j]
 def Christoffel_2(f, var_list):
     Gamma_1 = Christoffel_1(f, var_list)
     g = firstFF(f, var_list)
@@ -358,11 +376,30 @@ def Christoffel_2(f, var_list):
             for j in range(0, len(var_list)):
                 temp = 0
                 for m in range(0, len(var_list)):
-                    #print("g_inv {} {} = {}".format(k, m, g_inv.matrix[k][m]))
-                    #print("Gamma {} {} {} = {}".format(m, i, j, Gamma_1[m][i][j]))
                     temp += g_inv.matrix[k][m] * Gamma_1[m][i][j]
-                #print("Gamma2 {} {} {} = {}".format(k, i, j, sym.simplify(temp)))
-                #print(" ")
+                sub_ele.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(temp)))))
+            g_ele.append(sub_ele)
+        Gamma_2.append(g_ele)
+
+    return Gamma_2
+
+###
+# Calculate Christoffel Symbols of the Second Kind Given the Metric Tensor g_ij
+###
+
+def Christoffel_2_metric(g, var_list):
+    Gamma_1 = Christoffel_1_metric(g, var_list)
+    g_inv = inverse(g)
+
+    Gamma_2 = []
+    for k in range(0, len(var_list)):
+        g_ele = []
+        for i in range(0, len(var_list)):
+            sub_ele = []
+            for j in range(0, len(var_list)):
+                temp = 0
+                for m in range(0, len(var_list)):
+                    temp += g_inv.matrix[k][m] * Gamma_1[m][i][j]
                 sub_ele.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(temp)))))
             g_ele.append(sub_ele)
         Gamma_2.append(g_ele)
@@ -823,10 +860,53 @@ def Riemann_Curvature(f, var_list):
 
     return R
 
+###
+# Calculates the Riemann Curvature Tensor given the Metric Tensor g_ij
+###
+def Riemann_Curvature_metric(g, var_list):
+    Gamma = Christoffel_2_metric(g, var_list)
+    R = []
+    for rho in range(0, len(var_list)):
+        ele1 = []
+        for sigma in range(0, len(var_list)):
+            ele2 = []
+            for mu in range(0, len(var_list)):
+                ele3 = []
+                for nu in range(0, len(var_list)):
+                    val = 0
+                    val += sym.diff(Gamma[rho][nu][sigma], var_list[mu])
+                    val -= sym.diff(Gamma[rho][mu][sigma], var_list[nu])
+                    for lamb in range(0, len(var_list)):
+                        val += Gamma[rho][mu][lamb] * Gamma[lamb][nu][sigma]
+                        val -= Gamma[rho][nu][lamb] * Gamma[lamb][mu][sigma]
+                    ele3.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(val)))))
+                ele2.append(ele3)
+            ele1.append(ele2)
+        R.append(ele1)
+
+    return R
+
 # Calculates the Ricci Curvature Tensor for a Parametrized Surface
 def Ricci_Curvature(f, var_list):
     n = len(var_list)
     Riemann = Riemann_Curvature(f, var_list)
+
+    Ric_ele = []
+    for i in range(0, n):
+        for j in range(0, n):
+            val = 0
+            for k in range(0, n):
+                val += Riemann[k][i][k][j]
+            Ric_ele.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(val)))))
+    Ric = Matrix(n, n, Ric_ele)
+    return Ric
+
+###
+# Calculates the Ricci Curvature Tensor given the Metric Tensor g_ij
+###
+def Ricci_Curvature_metric(g, var_list):
+    n = len(var_list)
+    Riemann = Riemann_Curvature_metric(g, var_list)
 
     Ric_ele = []
     for i in range(0, n):
@@ -850,6 +930,19 @@ def Ricci_Scalar(f, var_list):
     R = sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(R))))
     return R
 
+###
+# Calculates the Ricci Scalar given the Metric Tensor g_ij
+###
+def Ricci_Scalar_metric(g, var_list):
+    Ric = Ricci_Curvature_metric(g,var_list)
+    g_inv = inverse(g)
+    R = 0
+    for i in range(0, len(var_list)):
+        for j in range(0, len(var_list)):
+            R += g_inv.matrix[i][j] * Ric.matrix[i][j]
+    R = sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(R))))
+    return R
+
 # Returns the Minkowski Metric for n dimensional spacial components (-, +, +, +, +, ...)
 def Minkowski(n):
     ele = []
@@ -864,22 +957,34 @@ def Minkowski(n):
     eta = Matrix(n+1, n+1, ele)
     return eta
 
-# Calculates the Einstein Tensor for a parametrized surface in R^n_1 with n-1 spacial parameters and 1 time parameter
+# Calculates the Einstein Tensor for a parametrized surface in R^n_1 with n-1 spacial parameters and 1 time parameter (assumes Minkowski metric is not added yet)
 def Einstein_Tensor(f, var_list, Cos_const=True):
     if len(var_list) != f.dim:
         print("You must have the same number of parameters as the vector's dimension.")
         return Matrix(1, 1, [-1])
     if not Cos_const:
         g = M_add(Minkowski(f.dim - 1), firstFF(f, var_list))
-        Ric = Ricci_Curvature(f, var_list)
-        R = Ricci_Scalar(f, var_list)
-        Ein = M_sub(Ric, MC_mult(g, (R/2)))
+        Ein = Einstein_Tensor_metric(g, var_list, Cos_const)
         return Ein
     else:
         g = M_add(Minkowski(f.dim - 1), firstFF(f, var_list))
-        Ric = Ricci_Curvature(f, var_list)
-        R = Ricci_Scalar(f, var_list)
-        Ein = M_Add(M_sub(Ric, MC_mult(g, (R/2))), MC_mult(g, LAMBDA))
+        Ein = Einstein_Tensor_metric(g, var_list, Cos_const)
+        return Ein
+
+###
+# Calculates the Einstein Tensor given the Metric Tensor g_ij (assumes already has Minkowski metric added to it)
+###
+
+def Einstein_Tensor_metric(g, var_list, Cos_const=True):
+    if not Cos_const:
+        Ric = Ricci_Curvature_metric(g, var_list)
+        R = Ricci_Scalar_metric(g, var_list)
+        Ein = M_sub(Ric, MC_mult(g, (R/2)))
+        return Ein
+    else:
+        Ric = Ricci_Curvature_metric(g, var_list)
+        R = Ricci_Scalar_metric(g, var_list)
+        Ein = M_add(M_sub(Ric, MC_mult(g, (R/2))), MC_mult(g, LAMBDA))
         return Ein
 
 # Calculates the Energy Momentum Tensor given a parametrized surface in R^n_1 with n-1 spacial parameters and 1 time parameter
@@ -888,39 +993,181 @@ def EMT(f, var_list, Cos_const=True):
     T = MC_mult(Ein, 1/KAPPA)
     return T
 
+###
+# Calculates the Energy Momentum Tensor given the Metric Tensor g_ij
+###
+def EMT_metric(g, var_list, Cos_const=True):
+    Ein = Einstein_Tensor_metric(g, var_list, Cos_const)
+    T = MC_mult(Ein, 1/KAPPA)
+    return T
 
 ###
-# Default Variables
+# Calculate the Kulkarni-Nomizu Product of two (0, 2) tensors A and B
 ###
+def Kulkarni_Nomizu(A, B):
+    n = A.rows
+    KN = []
+    for rho in range(0, n):
+        ele1 = []
+        for sigma in range(0, n):
+            ele2 = []
+            for mu in range(0, n):
+                ele3 = []
+                for nu in range(0, n):
+                    val = A.matrix[rho][mu] * B.matrix[sigma][nu] + A.matrix[sigma][nu] * B.matrix[rho][mu] - A.matrix[rho][nu] * B.matrix[sigma][mu] - A.matrix[sigma][mu] * B.matrix[rho][nu]
+                    ele3.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(val)))))
+                ele2.append(ele3)
+            ele1.append(ele2)
+        KN.append(ele1)
 
-#u = sym.symbols('u')
-#v = sym.symbols('v')
-#s = sym.symbols('s')
-#t = sym.symbols('t')
-
-
+    return KN
 
 ###
-# Möbius Strip with n half-twists
+# Calculate the Weyl Tensor for a Parametrized Surface
 ###
+def Weyl_Tensor(f, var_list):
+    n = len(var_list)
+    Riemann = Riemann_Curvature(f, var_list)
+    Ric = Ricci_Curvature(f, var_list)
+    R = Ricci_Scalar(f, var_list)
+    g = firstFF(f, var_list)
 
-#r = 1
-#n = 1
-##x = (r + v * sym.cos(n*u/2)) * sym.cos(u)
-##y = (r + v * sym.cos(n*u/2)) * sym.sin(u)
-##z = v * sym.sin(n*u/2)
-##
-##f = Vector([x, y, z])
-##print("f")
-##print(f)
-##f1 = partial(f, u)
-##print("f_u")
-##print(f1)
-##f2 = partial(f, v)
-##print("f_v")
-##print(f2)
-##nu = gauss_map(f, u, v)
-##print("nu")
-##print(nu)
-##g = firstFF(f, u, v)
-##printMatrix(g)
+    term1 = Kulkarni_Nomizu(g, Ric)
+    for  i in range(0, n):
+        for j in range(0, n):
+            for k in range(0, n):
+                for l in range(0, n):
+                    term1[i][j][k][l] = sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(term1[i][j][k][l] * (1/(n - 2))))))
+    term2 = Kulkarni_Nomizu(g, g)
+    for  i in range(0, n):
+        for j in range(0, n):
+            for k in range(0, n):
+                for l in range(0, n):
+                    term2[i][j][k][l] = sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(term2[i][j][k][l] * (R / (2 * (n - 1) * (n - 2)))))))
+
+    Weyl = []
+    for rho in range(0, n):
+        ele1 = []
+        for sigma in range(0, n):
+            ele2 = []
+            for mu in range(0, n):
+                ele3 = []
+                for nu in range(0, n):
+                    val = Riemann[rho][sigma][mu][nu] - term1[rho][sigma][mu][nu] + term2[rho][sigma][mu][nu]
+                    ele3.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(val)))))
+                ele2.append(ele3)
+            ele1.append(ele2)
+        Weyl.append(ele1)
+
+    return Weyl
+
+###
+# Calculate the Weyl Tensor given the Metric Tensor g_ij
+###
+def Weyl_Tensor_metric(g, var_list):
+    n = len(var_list)
+    Riemann = Riemann_Curvature_metric(g, var_list)
+    Ric = Ricci_Curvature_metric(g, var_list)
+    R = Ricci_Scalar_metric(g, var_list)
+
+    term1 = Kulkarni_Nomizu(g, Ric)
+    for  i in range(0, n):
+        for j in range(0, n):
+            for k in range(0, n):
+                for l in range(0, n):
+                    term1[i][j][k][l] = sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(term1[i][j][k][l] * (1/(n - 2))))))
+    term2 = Kulkarni_Nomizu(g, g)
+    for  i in range(0, n):
+        for j in range(0, n):
+            for k in range(0, n):
+                for l in range(0, n):
+                    term2[i][j][k][l] = sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(term2[i][j][k][l] * (R / (2 * (n - 1) * (n - 2)))))))
+
+    Weyl = []
+    for rho in range(0, n):
+        ele1 = []
+        for sigma in range(0, n):
+            ele2 = []
+            for mu in range(0, n):
+                ele3 = []
+                for nu in range(0, n):
+                    val = Riemann[rho][sigma][mu][nu] - term1[rho][sigma][mu][nu] + term2[rho][sigma][mu][nu]
+                    ele3.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(val)))))
+                ele2.append(ele3)
+            ele1.append(ele2)
+        Weyl.append(ele1)
+
+    return Weyl
+
+###
+# Calculates the Schouten Tensor for a Parametrized Surface
+###
+def Schouten_Tensor(f, var_list):
+    n = len(var_list)
+    Ric = Ricci_Curvature(f, var_list)
+    R = Ricci_Scalar(f, var_list)
+    g = firstFF(f, var_list)
+
+    ele = []
+    for i in range(0, n):
+        for j in range(0, n):
+            val = (1 / (n - 2)) * (Ric.matrix[i][j] - (R / (2 * (n - 1))) * g.matrix[i][j])
+            ele.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(val)))))
+    S = Matrix(n, n, ele)
+    return S
+
+###
+# Calculates the Schouten Tensor given the Metric Tensor g_ij
+###
+def Schouten_Tensor_metric(g, var_list):
+    n = len(var_list)
+    Ric = Ricci_Curvature_metric(g, var_list)
+    R = Ricci_Scalar_metric(g, var_list)
+
+    ele = []
+    for i in range(0, n):
+        for j in range(0, n):
+            val = (1 / (n - 2)) * (Ric.matrix[i][j] - (R / (2 * (n - 1))) * g.matrix[i][j])
+            ele.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(val)))))
+    S = Matrix(n, n, ele)
+    return S
+
+###
+# Calculates the Cotton Tensor for a Parametrized Surface
+###
+def Cotton_Tensor(f, var_list):
+    n = len(var_list)
+    S = Schouten_Tensor(f, var_list)
+
+    C = []
+    for rho in range(0, n):
+        ele1 = []
+        for sigma in range(0, n):
+            ele2 = []
+            for mu in range(0, n):
+                val = sym.diff(S.matrix[sigma][rho], var_list[mu]) - sym.diff(S.matrix[mu][rho], var_list[sigma])
+                ele2.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(val)))))
+            ele1.append(ele2)
+        C.append(ele1)
+
+    return C
+
+###
+# Calculates the Cotton Tensor given the Metric Tensor g_ij
+###
+def Cotton_Tensor_metric(g, var_list):
+    n = len(var_list)
+    S = Schouten_Tensor_metric(g, var_list)
+
+    C = []
+    for rho in range(0, n):
+        ele1 = []
+        for sigma in range(0, n):
+            ele2 = []
+            for mu in range(0, n):
+                val = sym.diff(S.matrix[sigma][rho], var_list[mu]) - sym.diff(S.matrix[mu][rho], var_list[sigma])
+                ele2.append(sym.simplify(sym.powsimp(sym.trigsimp(sym.expand_trig(val)))))
+            ele1.append(ele2)
+        C.append(ele1)
+
+    return C
